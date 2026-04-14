@@ -25,3 +25,9 @@ A recipe API project
 ## run development server
 
 `docker-compose up`
+
+## Authenticate with Docker Hub
+
+- register your account
+- use `docker login` during our job
+- add secrets to github project in the settings
