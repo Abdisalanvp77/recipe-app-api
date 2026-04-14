@@ -21,3 +21,7 @@ A recipe API project
 ## create the project with docker compose
 
 `docker-compose run --rm app sh -c "django-admin startproject app ."`
+
+## run development server
+
+`docker-compose up`
