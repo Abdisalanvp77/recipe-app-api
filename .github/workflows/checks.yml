@@ -16,6 +16,6 @@ jobs:
       - name: Check out the code
         uses: actions/checkout@v4
       - name: Build and run tests
-        run: docker compose run --rm app sh -c "python manage.py test"
+        run: docker compose run --rm app sh -c "python manage.py wait_for_db && python manage.py test"
       - name: Run Linting with flake8
         run: docker compose run --rm app sh -c "flake8"
