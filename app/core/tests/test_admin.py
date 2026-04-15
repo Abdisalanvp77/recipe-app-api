@@ -1,0 +1,38 @@
+"""_summary_
+Test for the Django admin modifications.
+"""
+from django.test import TestCase
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from django.test import Client
+
+
+class AdminSiteTests(TestCase):
+    """_summary_ Test for the Django admin modifications.
+    """
+
+    def setUp(self):
+        """_summary_ Create user and client for testing.
+        """
+        self.client = Client()
+        self.admin_user = get_user_model().objects.create_superuser(
+            email='admin@example.com',
+            password='testpass123'
+        )
+        self.client.force_login(self.admin_user)
+        self.user = get_user_model().objects.create_user(
+            email='user@example.com',
+            password='testpass123',
+            name='Test User'
+        )
+
+    def test_users_listed(self):
+        """_summary_ Test that users are listed on user page.
+        """
+        url = reverse('admin:core_user_changelist')
+        res = self.client.get(url)
+
+        self.assertContains(res, self.admin_user.name)
+        self.assertContains(res, self.admin_user.email)
+        self.assertContains(res, self.user.name)
+        self.assertContains(res, self.user.email)
