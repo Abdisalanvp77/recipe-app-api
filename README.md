@@ -2,6 +2,14 @@
 
 A recipe API project
 
+## Clear any running containers
+
+`docker-compose down`
+
+## run container
+
+`docker-compose up`
+
 ## Build with Docker
 
 `docker build .`
