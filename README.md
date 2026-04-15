@@ -26,6 +26,24 @@ A recipe API project
 
 `docker-compose run --rm app sh -c "python manage.py test"`
 
+## Check the docker volume
+
+`docker volume ls`
+
+## Remove a docker volume
+
+- copy the name of the volume from the above ls output
+- ensure the volume is not in use by typing `docker-compose down`
+- remove it by typing `docker volume rm <volume_name>`
+
+## Make Migrations
+
+`docker-compose run --rm app sh -c "python manage.py makemigrations"`
+
+## Migrate
+
+`docker-compose run --rm app sh -c "python manage.py migrate"`
+
 ## create the project with docker compose
 
 `docker-compose run --rm app sh -c "django-admin startproject app ."`
