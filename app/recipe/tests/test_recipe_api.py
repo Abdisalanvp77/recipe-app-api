@@ -8,7 +8,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 from core.models import Recipe
-from recipe.serializers import RecipeSerializer
+from recipe.serializers import RecipeSerializer, RecipeDetailSerializer
 
 RECIPES_URL = reverse('recipe:recipe-list')
 
@@ -104,3 +104,13 @@ class PrivateRecipeApiTests(TestCase):
         recipe = Recipe.objects.get(id=res.data['id'])
         for key in payload.keys():
             self.assertEqual(payload[key], getattr(recipe, key))
+
+    def test_recipe_detail(self):
+        """Test viewing a recipe detail."""
+        recipe = create_recipe(user=self.user)
+
+        url = detail_url(recipe.id)
+        res = self.client.get(url)
+
+        serializer = RecipeDetailSerializer(recipe)
+        self.assertEqual(res.data, serializer.data)
