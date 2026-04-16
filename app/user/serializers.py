@@ -10,6 +10,7 @@ from rest_framework import serializers
 # without having to import it directly from the core app.
 User = get_user_model()
 
+
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for the user object."""
 
@@ -18,7 +19,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ('email', 'password', 'name')
         extra_kwargs = {
             'password': {
-                'write_only': True,  #for security reasons, we don't want to return the password in the API response
+                'write_only': True,  # for security reasons, we don't want to return the password in the API response
                 'min_length': 5
             }
         }

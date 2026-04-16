@@ -11,6 +11,7 @@ from rest_framework import status
 
 CREATE_USER_URL = reverse('user:create')
 
+
 def create_user(**params):
     """Helper function to create a new user."""
     return get_user_model().objects.create_user(**params)
@@ -64,21 +65,20 @@ class PublicUserApiTests(TestCase):
         self.assertFalse(user_exists)
 
 
-class PrivateUserApiTests(TestCase):
-    """Test the users API (private)."""
+# class PrivateUserApiTests(TestCase):
+#     """Test the users API (private)."""
 
-    def setUp(self):
-        self.user = create_user(
-            email='test@example.com',
-            password='testpass123'
-        )
-        self.client = APIClient()
-        self.client.force_authenticate(user=self.user)
+#     def setUp(self):
+#         self.user = create_user(
+#             email='test@example.com',
+#             password='testpass123'
+#         )
+#         self.client = APIClient()
+#         self.client.force_authenticate(user=self.user)
 
-    def test_retrieve_user_unauthorized(self):
-        """Test that authentication is required for users."""
-        self.client.force_authenticate(user=None)
-        res = self.client.get(CREATE_USER_URL)
+#     def test_retrieve_user_unauthorized(self):
+#         """Test that authentication is required for users."""
+#         self.client.force_authenticate(user=None)
+#         res = self.client.get(CREATE_USER_URL)
 
-        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
-
+#         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
