@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from rest_framework import status
 
 CREATE_USER_URL = reverse('user:create')
-
+TOKEN_URL = reverse('user:token')
 
 def create_user(**params):
     """Helper function to create a new user."""
@@ -64,9 +64,82 @@ class PublicUserApiTests(TestCase):
         ).exists()
         self.assertFalse(user_exists)
 
+    def test_create_token_for_user(self):
+        """Test that a token is created for the user."""
+        user_details = {
+            'name': 'Test Name',
+            'email': 'test@example.com',
+            'password': 'testpass123'
+        }
+        create_user(**user_details)
+        payload = {
+            'email': 'test@example.com',
+            'password': 'testpass123',
+            'name': 'Test Name'
+        }
+        res = self.client.post(TOKEN_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn('token', res.data)
 
-# class PrivateUserApiTests(TestCase):
-#     """Test the users API (private)."""
+    def test_create_token_bad_credentials(self):
+        """Test returns error if credentials invalid."""
+        user_details = {
+            'name': 'Test Name',
+            'email': 'test@example.com',
+            'password': 'testpass123'
+        }
+        create_user(**user_details)
+        payload = {
+            'email': 'test@example.com',
+            'password': 'wrongpass',
+            'name': 'Test Name'
+        }
+        res = self.client.post(TOKEN_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('token', res.data)
+
+    def test_create_token_no_user(self):
+        """Test returns error if user doesn't exist."""
+        payload = {
+            'email': 'nonexistent@example.com',
+            'password': 'wrongpass',
+            'name': 'Test Name'
+        }
+        res = self.client.post(TOKEN_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('token', res.data)
+
+    def test_create_token_missing_field(self):
+        """Test returns error if email or password missing."""
+        payload = {
+            'email': 'one',
+            'password': '',
+            'name': 'Test Name'
+        }
+        res = self.client.post(TOKEN_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('token', res.data)
+
+    def test_create_token_missing_email(self):
+        """Test returns error if email missing."""
+        payload = {
+            'email': '',
+            'password': 'testpass123',
+            'name': 'Test Name'
+        }
+        res = self.client.post(TOKEN_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('token', res.data)
+
+    def test_create_token_missing_password(self):
+        """Test returns error if password missing."""
+        payload = {
+            'email': 'test@example.com',
+            'password': ''
+        }
+        res = self.client.post(TOKEN_URL, payload)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn('token', res.data)
 
 #     def setUp(self):
 #         self.user = create_user(
