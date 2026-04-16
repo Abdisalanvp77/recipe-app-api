@@ -10,7 +10,7 @@ A recipe API project
 
 `docker-compose up`
 
-## Build with Docker
+## Build with Docker and install requirements in the environment
 
 `docker build .`
 
