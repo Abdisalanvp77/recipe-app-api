@@ -70,3 +70,4 @@ class UserAdmin(BaseUserAdmin):
 
 
 admin.site.register(models.User, UserAdmin)  # Register the custom user model with the admin site.
+admin.site.register(models.Recipe)  # Register the Recipe model with the admin site.
