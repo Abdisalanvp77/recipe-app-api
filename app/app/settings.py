@@ -142,6 +142,6 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'Recipe API',
     'DESCRIPTION': 'API for managing recipes, ingredients, and tags.',
     'VERSION': '1.0.0',
-    'SERVE_INCLUDE_SCHEMA': False,
+    'SERVE_INCLUDE_SCHEMA': True,
 }
 
