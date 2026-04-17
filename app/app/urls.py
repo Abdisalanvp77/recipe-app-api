@@ -21,6 +21,9 @@ from drf_spectacular.views import (
 )
 from django.contrib import admin
 from django.urls import include, path
+from app import settings
+from django.conf.urls.static import static
+
 
 urlpatterns = [
     path(
@@ -41,3 +44,11 @@ urlpatterns = [
         'api/recipe/',
         include('recipe.urls')),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(
+        settings.STATIC_URL,
+        document_root=settings.STATIC_ROOT)
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT)
