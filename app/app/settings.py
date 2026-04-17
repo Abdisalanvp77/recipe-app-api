@@ -146,5 +146,6 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API for managing recipes, ingredients, and tags.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': True,
+    'COMPONENT_SPLIT_REQUEST': True,
 }
 
