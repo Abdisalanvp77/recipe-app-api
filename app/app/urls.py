@@ -15,6 +15,7 @@ Including another URLconf
 """
 
 
+from core.views import health_check
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView
@@ -29,6 +30,10 @@ urlpatterns = [
     path(
         'admin/',
         admin.site.urls),
+    path(
+        'api/health/',
+        health_check,
+        name='health_check'),
     path(
         'api/schema/',
         SpectacularAPIView.as_view(),
