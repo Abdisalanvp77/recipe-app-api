@@ -7,6 +7,10 @@ router = DefaultRouter()
 router.register('recipes', views.RecipeViewSet)
 router.register('tags', views.TagViewSet)
 router.register('ingredients', views.IngredientViewSet)
+router.register('dietary-restrictions', views.DietaryRestrictionViewSet)
+router.register('global-tags', views.GlobalTagViewSet)
+router.register('global-ingredients', views.GlobalIngredientViewSet)
+router.register('collections', views.RecipeCollectionViewSet)
 
 app_name = 'recipe'
 urlpatterns = [
@@ -18,4 +22,7 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy'
     }), name='recipe-ratings'),
+    path('collections/<int:pk>/remove_recipe/<int:recipe_id>/',
+         views.RecipeCollectionViewSet.as_view({'delete': 'remove_recipe'}),
+         name='collection-remove-recipe'),
 ]

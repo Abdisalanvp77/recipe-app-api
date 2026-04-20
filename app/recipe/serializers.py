@@ -1,6 +1,17 @@
 """Serializers for the recipe API."""
 from rest_framework import serializers
-from core.models import Ingredient, Recipe, Rating, Tag
+from core.models import (
+    Ingredient,
+    Recipe,
+    Rating,
+    Tag,
+    RecipeStep,
+    DietaryRestriction,
+    GlobalTag,
+    GlobalIngredient,
+    RecipeCollection,
+    CollectionRecipe,
+)
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -21,10 +32,48 @@ class IngredientSerializer(serializers.ModelSerializer):
         read_only_fields = ['id']
 
 
+class DietaryRestrictionSerializer(serializers.ModelSerializer):
+    """Serializer for dietary restriction objects."""
+
+    class Meta:
+        model = DietaryRestriction
+        fields = ['id', 'name', 'slug']
+        read_only_fields = ['id', 'slug']
+
+
+class GlobalTagSerializer(serializers.ModelSerializer):
+    """Serializer for global tag objects."""
+
+    class Meta:
+        model = GlobalTag
+        fields = ['id', 'name', 'slug', 'usage_count']
+        read_only_fields = ['id', 'slug', 'usage_count']
+
+
+class GlobalIngredientSerializer(serializers.ModelSerializer):
+    """Serializer for global ingredient objects."""
+
+    class Meta:
+        model = GlobalIngredient
+        fields = ['id', 'name', 'slug', 'usage_count']
+        read_only_fields = ['id', 'slug', 'usage_count']
+
+
+class RecipeStepSerializer(serializers.ModelSerializer):
+    """Serializer for recipe steps."""
+
+    class Meta:
+        model = RecipeStep
+        fields = ['id', 'step_number', 'instruction', 'optional_timer_minutes', 'notes']
+        read_only_fields = ['id']
+
+
 class RecipeSerializer(serializers.ModelSerializer):
     """Serializer for recipe objects."""
     tags = TagSerializer(many=True, required=False)
     ingredients = IngredientSerializer(many=True, required=False)
+    steps = RecipeStepSerializer(many=True, required=False, read_only=True)
+    dietary_restrictions = DietaryRestrictionSerializer(many=True, required=False)
     average_rating = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
 
@@ -33,15 +82,29 @@ class RecipeSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'title',
+            'status',
             'time_minutes',
+            'prep_time_minutes',
+            'cook_time_minutes',
+            'servings',
             'price',
             'link',
+            'description',
+            'difficulty',
+            'cuisine',
+            'is_vegetarian',
+            'is_vegan',
+            'is_gluten_free',
             'tags',
             'ingredients',
+            'dietary_restrictions',
+            'steps',
             'average_rating',
-            'rating_count'
+            'rating_count',
+            'created_at',
+            'updated_at',
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'steps', 'created_at', 'updated_at']
 
     def get_average_rating(self, obj):
         return obj.average_rating
@@ -73,9 +136,12 @@ class RecipeSerializer(serializers.ModelSerializer):
         """Create a recipe."""
         tags_data = validated_data.pop('tags', [])
         ingredients_data = validated_data.pop('ingredients', [])
+        dietary_restrictions_data = validated_data.pop('dietary_restrictions', [])
         recipe = Recipe.objects.create(**validated_data)
         self._get_or_create_tags(tags_data, recipe)
         self._get_or_create_ingredients(ingredients_data, recipe)
+        for restriction in dietary_restrictions_data:
+            recipe.dietary_restrictions.add(restriction)
 
         return recipe
 
@@ -83,6 +149,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         """Update a recipe."""
         tags_data = validated_data.pop('tags', None)
         ingredients_data = validated_data.pop('ingredients', None)
+        dietary_restrictions_data = validated_data.pop('dietary_restrictions', None)
+
         if tags_data is not None:
             instance.tags.clear()
             self._get_or_create_tags(tags_data, instance)
@@ -90,6 +158,11 @@ class RecipeSerializer(serializers.ModelSerializer):
         if ingredients_data is not None:
             instance.ingredients.clear()
             self._get_or_create_ingredients(ingredients_data, instance)
+
+        if dietary_restrictions_data is not None:
+            instance.dietary_restrictions.clear()
+            for restriction in dietary_restrictions_data:
+                instance.dietary_restrictions.add(restriction)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -117,7 +190,7 @@ class RecipeDetailSerializer(RecipeSerializer):
     ratings = RecipeRatingSerializer(many=True, read_only=True)
 
     class Meta(RecipeSerializer.Meta):
-        fields = RecipeSerializer.Meta.fields + ['description', 'image', 'ratings']
+        fields = RecipeSerializer.Meta.fields + ['ratings']
 
 
 class RecipeImageSerializer(serializers.ModelSerializer):
@@ -128,3 +201,39 @@ class RecipeImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image']
         read_only_fields = ['id']
         extra_kwargs = {'image': {'required': 'True'}}
+
+
+class CollectionRecipeSerializer(serializers.ModelSerializer):
+    """Serializer for collection recipes."""
+    recipe = RecipeSerializer(read_only=True)
+
+    class Meta:
+        model = CollectionRecipe
+        fields = ['id', 'recipe', 'added_at', 'notes']
+        read_only_fields = ['id', 'recipe', 'added_at']
+
+
+class RecipeCollectionSerializer(serializers.ModelSerializer):
+    """Serializer for recipe collections."""
+    collection_recipes = serializers.SerializerMethodField()
+    recipe_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RecipeCollection
+        fields = ['id', 'name', 'description', 'is_public', 'created_at', 'updated_at', 'recipe_count', 'collection_recipes']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_collection_recipes(self, obj):
+        """Return collection recipes with metadata."""
+        collection_recipes = CollectionRecipe.objects.filter(collection=obj)
+        return CollectionRecipeSerializer(collection_recipes, many=True).data
+
+    def get_recipe_count(self, obj):
+        """Return the number of recipes in the collection."""
+        return obj.recipes.count()
+
+
+class CollectionRecipeActionSerializer(serializers.Serializer):
+    """Serializer for add/remove recipe actions on collections."""
+    recipe_id = serializers.IntegerField()
+    notes = serializers.CharField(required=False, allow_blank=True)

@@ -3,7 +3,7 @@ Views for the recipe APIs
 """
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Avg
+from django.db.models import Avg, Q
 from django.http import Http404
 from drf_spectacular.utils import (
     extend_schema_view,
@@ -26,17 +26,31 @@ from core.models import (
     Recipe,
     Rating,
     Tag,
-    Ingredient
+    Ingredient,
+    DietaryRestriction,
+    GlobalTag,
+    GlobalIngredient,
+    RecipeCollection,
+    CollectionRecipe,
 )
 from recipe import serializers
 
 
 class IsRecipeOwnerOrReadOnly(permissions.BasePermission):
-    """Allow safe recipe access to all authenticated users, but editing only by owner or admin."""
+    """Allow safe recipe access, respecting privacy settings. Edit only by owner or admin."""
 
     def has_object_permission(self, request, view, obj):
+        # Safe methods require respecting privacy
         if request.method in permissions.SAFE_METHODS:
-            return True
+            # if the recipe is draft, only the owner or admin can view it
+            if obj.status == 'draft':
+                return obj.user == request.user or request.user.is_superuser
+            # If the recipe is private, only the owner or admin can view it
+            if obj.status == 'private':
+                return obj.user == request.user or request.user.is_superuser
+            return obj.status in ['published']  # Published visible to all auth users
+
+        # Only owner or admin can edit/delete
         return obj.user == request.user or request.user.is_superuser
 
 
@@ -81,7 +95,17 @@ class RecipeViewSet(viewsets.ModelViewSet):
         tags = self.request.query_params.get('tags')
         ingredients = self.request.query_params.get('ingredients')
         rating = self.request.query_params.get('rating')
+        cuisine = self.request.query_params.get('cuisine')
+        difficulty = self.request.query_params.get('difficulty')
+        is_vegetarian = self.request.query_params.get('is_vegetarian')
+        is_vegan = self.request.query_params.get('is_vegan')
+
         queryset = self.queryset.annotate(avg_rating=Avg('ratings__rating'))
+
+        # Filter by privacy settings: show published/draft to all, private only to owner
+        queryset = queryset.filter(
+            Q(status__in=['published', 'draft']) | Q(user=self.request.user)
+        )
 
         if tags:
             tag_ids = self._params_to_ints(tags)
@@ -97,6 +121,18 @@ class RecipeViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(avg_rating__gte=rating_threshold)
             except InvalidOperation:
                 queryset = queryset.none()
+
+        if cuisine:
+            queryset = queryset.filter(cuisine__icontains=cuisine)
+
+        if difficulty:
+            queryset = queryset.filter(difficulty=difficulty)
+
+        if is_vegetarian:
+            queryset = queryset.filter(is_vegetarian=is_vegetarian.lower() == 'true')
+
+        if is_vegan:
+            queryset = queryset.filter(is_vegan=is_vegan.lower() == 'true')
 
         return queryset.order_by('-id').distinct()
 
@@ -271,3 +307,117 @@ class IngredientViewSet(BaseRecipeAttrViewSet):
     """
     serializer_class = serializers.IngredientSerializer
     queryset = Ingredient.objects.all()
+
+
+class DietaryRestrictionViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for dietary restrictions (read-only)."""
+    serializer_class = serializers.DietaryRestrictionSerializer
+    queryset = DietaryRestriction.objects.all()
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+
+class GlobalTagViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for global tags (read-only)."""
+    serializer_class = serializers.GlobalTagSerializer
+    queryset = GlobalTag.objects.all()
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+
+class GlobalIngredientViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet for global ingredients (read-only)."""
+    serializer_class = serializers.GlobalIngredientSerializer
+    queryset = GlobalIngredient.objects.all()
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+
+class IsCollectionOwnerOrReadOnly(permissions.BasePermission):
+    """Allow reading public collections, but editing only by owner or admin."""
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return obj.is_public or obj.user == request.user or request.user.is_superuser
+        return obj.user == request.user or request.user.is_superuser
+
+
+class RecipeCollectionViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing recipe collections."""
+    serializer_class = serializers.RecipeCollectionSerializer
+    queryset = RecipeCollection.objects.all()
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated, IsCollectionOwnerOrReadOnly]
+
+    def get_queryset(self):
+        """Return collections for current user and public collections."""
+        return RecipeCollection.objects.filter(
+            Q(user=self.request.user) | Q(is_public=True)
+        ).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        """Create a collection for the current user."""
+        serializer.save(user=self.request.user)
+
+    @action(methods=['POST'], detail=True, serializer_class=serializers.CollectionRecipeActionSerializer)
+    def add_recipe(self, request, pk=None):
+        """Add a recipe to a collection."""
+        collection = self.get_object()
+        recipe_id = request.data.get('recipe_id')
+        notes = request.data.get('notes', '')
+
+        try:
+            recipe = Recipe.objects.get(id=recipe_id)
+        except Recipe.DoesNotExist:
+            return Response(
+                {'detail': 'Recipe not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if recipe is already in collection
+        if collection.recipes.filter(id=recipe_id).exists():
+            return Response(
+                {'detail': 'Recipe is already in this collection.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        CollectionRecipe.objects.create(
+            collection=collection,
+            recipe=recipe,
+            notes=notes
+        )
+
+        return Response(
+            {'detail': 'Recipe added to collection.'},
+            status=status.HTTP_201_CREATED
+        )
+
+    def remove_recipe(self, request, pk=None, recipe_id=None):
+        """Remove a recipe from a collection."""
+        collection = self.get_object()
+
+        if recipe_id is None:
+            return Response(
+                {'detail': 'Recipe ID is required in the URL path.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            recipe = Recipe.objects.get(id=recipe_id)
+        except Recipe.DoesNotExist:
+            return Response(
+                {'detail': 'Recipe not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            CollectionRecipe.objects.get(
+                collection=collection,
+                recipe=recipe
+            ).delete()
+        except CollectionRecipe.DoesNotExist:
+            return Response(
+                {'detail': 'Recipe not found in this collection.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)

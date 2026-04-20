@@ -73,3 +73,5 @@ admin.site.register(models.User, UserAdmin)  # Register the custom user model wi
 admin.site.register(models.Recipe)  # Register the Recipe model with the admin site.
 admin.site.register(models.Tag)  # Register the Tag model with the admin site.
 admin.site.register(models.Ingredient)  # Register the Ingredient model with the admin site.
+admin.site.register(models.RecipeCollection)  # Register the RecipeCollection model with the admin site.
+admin.site.register(models.CollectionRecipe)  # Register the CollectionRecipe model with the admin site.
