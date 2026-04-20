@@ -309,28 +309,86 @@ class IngredientViewSet(BaseRecipeAttrViewSet):
     queryset = Ingredient.objects.all()
 
 
-class DietaryRestrictionViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for dietary restrictions (read-only)."""
+class DietaryRestrictionViewSet(viewsets.ModelViewSet):
+    """ViewSet for dietary restrictions."""
     serializer_class = serializers.DietaryRestrictionSerializer
     queryset = DietaryRestriction.objects.all()
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        """Allow read access to all authenticated users, write access to admins."""
+        if self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
 
-class GlobalTagViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for global tags (read-only)."""
+
+@extend_schema_view(
+    list=extend_schema(
+        description="List all global tags available for recipe categorization."
+    ),
+    create=extend_schema(
+        description="Create a new global tag (admin only)."
+    ),
+    retrieve=extend_schema(
+        description="Retrieve a specific global tag."
+    ),
+    update=extend_schema(
+        description="Update a global tag (admin only)."
+    ),
+    partial_update=extend_schema(
+        description="Partially update a global tag (admin only)."
+    ),
+    destroy=extend_schema(
+        description="Delete a global tag (admin only)."
+    )
+)
+class GlobalTagViewSet(viewsets.ModelViewSet):
+    """ViewSet for global tags."""
     serializer_class = serializers.GlobalTagSerializer
     queryset = GlobalTag.objects.all()
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        """Allow read access to all authenticated users, write access to admins."""
+        if self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
 
-class GlobalIngredientViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet for global ingredients (read-only)."""
+
+@extend_schema_view(
+    list=extend_schema(
+        description="List all global ingredients available for recipe categorization."
+    ),
+    create=extend_schema(
+        description="Create a new global ingredient (admin only)."
+    ),
+    retrieve=extend_schema(
+        description="Retrieve a specific global ingredient."
+    ),
+    update=extend_schema(
+        description="Update a global ingredient (admin only)."
+    ),
+    partial_update=extend_schema(
+        description="Partially update a global ingredient (admin only)."
+    ),
+    destroy=extend_schema(
+        description="Delete a global ingredient (admin only)."
+    )
+)
+class GlobalIngredientViewSet(viewsets.ModelViewSet):
+    """ViewSet for global ingredients."""
     serializer_class = serializers.GlobalIngredientSerializer
     queryset = GlobalIngredient.objects.all()
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        """Allow read access to all authenticated users, write access to admins."""
+        if self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAdminUser()]
 
 
 class IsCollectionOwnerOrReadOnly(permissions.BasePermission):

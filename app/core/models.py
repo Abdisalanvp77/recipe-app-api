@@ -8,6 +8,7 @@ import os
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.utils.text import slugify
 from django.contrib.auth.models import (
     AbstractBaseUser,
     BaseUserManager,
@@ -195,6 +196,17 @@ class DietaryRestriction(models.Model):
     class Meta:
         ordering = ['name']
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+            # Ensure uniqueness
+            original_slug = self.slug
+            counter = 1
+            while DietaryRestriction.objects.filter(slug=self.slug).exists():
+                self.slug = f"{original_slug}-{counter}"
+                counter += 1
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 
@@ -209,6 +221,17 @@ class GlobalTag(models.Model):
     class Meta:
         ordering = ['-usage_count', 'name']
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+            # Ensure uniqueness
+            original_slug = self.slug
+            counter = 1
+            while GlobalTag.objects.filter(slug=self.slug).exists():
+                self.slug = f"{original_slug}-{counter}"
+                counter += 1
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 
@@ -222,6 +245,17 @@ class GlobalIngredient(models.Model):
 
     class Meta:
         ordering = ['-usage_count', 'name']
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+            # Ensure uniqueness
+            original_slug = self.slug
+            counter = 1
+            while GlobalIngredient.objects.filter(slug=self.slug).exists():
+                self.slug = f"{original_slug}-{counter}"
+                counter += 1
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

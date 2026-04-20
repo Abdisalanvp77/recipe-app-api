@@ -46,8 +46,8 @@ class GlobalTagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GlobalTag
-        fields = ['id', 'name', 'slug', 'usage_count']
-        read_only_fields = ['id', 'slug', 'usage_count']
+        fields = ['id', 'name', 'slug', 'usage_count', 'created_at']
+        read_only_fields = ['id', 'slug', 'usage_count', 'created_at']
 
 
 class GlobalIngredientSerializer(serializers.ModelSerializer):
@@ -55,8 +55,8 @@ class GlobalIngredientSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GlobalIngredient
-        fields = ['id', 'name', 'slug', 'usage_count']
-        read_only_fields = ['id', 'slug', 'usage_count']
+        fields = ['id', 'name', 'slug', 'usage_count', 'created_at']
+        read_only_fields = ['id', 'slug', 'usage_count', 'created_at']
 
 
 class RecipeStepSerializer(serializers.ModelSerializer):
