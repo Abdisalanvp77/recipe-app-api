@@ -1,6 +1,6 @@
 """Serializers for the recipe API."""
 from rest_framework import serializers
-from core.models import Ingredient, Recipe, Tag
+from core.models import Ingredient, Recipe, Rating, Tag
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -25,11 +25,29 @@ class RecipeSerializer(serializers.ModelSerializer):
     """Serializer for recipe objects."""
     tags = TagSerializer(many=True, required=False)
     ingredients = IngredientSerializer(many=True, required=False)
+    average_rating = serializers.SerializerMethodField()
+    rating_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
-        fields = ['id', 'title', 'time_minutes', 'price', 'link', 'tags', 'ingredients']
+        fields = [
+            'id',
+            'title',
+            'time_minutes',
+            'price',
+            'link',
+            'tags',
+            'ingredients',
+            'average_rating',
+            'rating_count'
+        ]
         read_only_fields = ['id']
+
+    def get_average_rating(self, obj):
+        return obj.average_rating
+
+    def get_rating_count(self, obj):
+        return obj.rating_count
 
     def _get_or_create_ingredients(self, ingredients_data, recipe):
         """Handle getting or creating ingredients as needed."""
@@ -80,11 +98,26 @@ class RecipeSerializer(serializers.ModelSerializer):
         return instance
 
 
+class RecipeRatingSerializer(serializers.ModelSerializer):
+    """Serializer for recipe rating objects."""
+
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    recipe = serializers.PrimaryKeyRelatedField(read_only=True)
+    rating = serializers.DecimalField(max_digits=3, decimal_places=1, min_value=1, max_value=5)
+
+    class Meta:
+        model = Rating
+        fields = ['id', 'user', 'recipe', 'rating']
+        read_only_fields = ['id', 'user', 'recipe']
+
+
 class RecipeDetailSerializer(RecipeSerializer):
     """Serializer for recipe detail view."""
 
+    ratings = RecipeRatingSerializer(many=True, read_only=True)
+
     class Meta(RecipeSerializer.Meta):
-        fields = RecipeSerializer.Meta.fields + ['description', 'image']
+        fields = RecipeSerializer.Meta.fields + ['description', 'image', 'ratings']
 
 
 class RecipeImageSerializer(serializers.ModelSerializer):
