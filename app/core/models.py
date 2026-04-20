@@ -71,8 +71,45 @@ class Recipe(models.Model):
     ingredients = models.ManyToManyField('Ingredient')
     image = models.ImageField(null=True, upload_to=recipe_image_file_path)
 
+    @property
+    def average_rating(self):
+        """Return the average rating for the recipe."""
+        aggregate = self.ratings.aggregate(models.Avg('rating'))['rating__avg']
+        return round(aggregate, 2) if aggregate is not None else None
+
+    @property
+    def rating_count(self):
+        """Return the total number of ratings for the recipe."""
+        return self.ratings.count()
+
     def __str__(self):
         return self.title
+
+
+class Rating(models.Model):
+    """Rating given by a user to a recipe."""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE
+    )
+    recipe = models.ForeignKey(
+        Recipe,
+        related_name='ratings',
+        on_delete=models.CASCADE
+    )
+    rating = models.DecimalField(max_digits=3, decimal_places=1)
+
+    class Meta:
+        unique_together = ('user', 'recipe')
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(rating__gte=1) & models.Q(rating__lte=5),
+                name='rating_range_1_5'
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.rating} rating for {self.recipe.title}'
 
 
 class Tag(models.Model):
