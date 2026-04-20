@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
-from core.models import Ingredient, Recipe, Tag
+from core.models import Ingredient, Recipe, Rating, Tag
 from recipe.serializers import RecipeSerializer, RecipeDetailSerializer
 
 RECIPES_URL = reverse('recipe:recipe-list')
@@ -88,18 +88,213 @@ class PrivateRecipeApiTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
 
-    def test_recipes_limited_to_user(self):
-        """Test retrieving recipes for user."""
+    def test_rate_recipe(self):
+        """Test rating a recipe."""
+        recipe = create_recipe(user=self.user)
+        url = reverse('recipe:recipe-ratings', args=[recipe.id])
+        payload = {'rating': Decimal('4.5')}
+
+        res = self.client.post(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(recipe.ratings.get(user=self.user).rating, Decimal('4.5'))
+
+    def test_update_recipe_rating(self):
+        """Test updating a recipe rating."""
+        recipe = create_recipe(user=self.user)
+        recipe.ratings.create(user=self.user, rating=Decimal('2.0'))
+        url = reverse('recipe:recipe-ratings', args=[recipe.id])
+        payload = {'rating': Decimal('4.5')}
+
+        res = self.client.patch(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(recipe.ratings.get(user=self.user).rating, Decimal('4.5'))
+
+    def test_delete_own_rating(self):
+        """Test deleting your own rating."""
+        recipe = create_recipe(user=self.user)
+        Rating.objects.create(user=self.user, recipe=recipe, rating=Decimal('4.0'))
+        url = reverse('recipe:recipe-ratings', args=[recipe.id])
+
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Rating.objects.filter(user=self.user, recipe=recipe).exists())
+
+    def test_cannot_delete_other_users_rating(self):
+        """Test that a user cannot delete another user's rating."""
         other_user = create_user(
             email='other@example.com',
             password='otherpass123'
         )
-        create_recipe(user=self.user)
-        create_recipe(user=other_user)
+        recipe = create_recipe(user=self.user)
+        Rating.objects.create(user=other_user, recipe=recipe, rating=Decimal('3.0'))
+        url = reverse('recipe:recipe-ratings', args=[recipe.id])
+
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(Rating.objects.filter(user=other_user, recipe=recipe).exists())
+
+    def test_admin_can_update_other_users_rating(self):
+        """Test that an admin can update another user's rating."""
+        other_user = create_user(
+            email='other@example.com',
+            password='otherpass123'
+        )
+        admin_user = get_user_model().objects.create_superuser(
+            email='admin@example.com',
+            password='adminpass123'
+        )
+        recipe = create_recipe(user=self.user)
+        Rating.objects.create(user=other_user, recipe=recipe, rating=Decimal('3.0'))
+        self.client.force_authenticate(user=admin_user)
+        url = reverse('recipe:recipe-ratings', args=[recipe.id]) + f'?user={other_user.id}'
+        payload = {'rating': Decimal('4.0')}
+
+        res = self.client.patch(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(Rating.objects.get(user=other_user, recipe=recipe).rating, Decimal('4.0'))
+
+    def test_admin_can_delete_other_users_rating(self):
+        """Test that an admin can delete another user's rating."""
+        other_user = create_user(
+            email='other@example.com',
+            password='otherpass123'
+        )
+        admin_user = get_user_model().objects.create_superuser(
+            email='admin@example.com',
+            password='adminpass123'
+        )
+        recipe = create_recipe(user=self.user)
+        Rating.objects.create(user=other_user, recipe=recipe, rating=Decimal('3.0'))
+        self.client.force_authenticate(user=admin_user)
+        url = reverse('recipe:recipe-ratings', args=[recipe.id]) + f'?user={other_user.id}'
+
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Rating.objects.filter(user=other_user, recipe=recipe).exists())
+
+    def test_update_rating_when_none_exists(self):
+        """Test updating a rating when user hasn't rated the recipe yet."""
+        recipe = create_recipe(user=self.user)
+        url = reverse('recipe:recipe-ratings', args=[recipe.id])
+        payload = {'rating': Decimal('4.0')}
+
+        res = self.client.patch(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_delete_rating_when_none_exists(self):
+        """Test deleting a rating when user hasn't rated the recipe yet."""
+        recipe = create_recipe(user=self.user)
+        url = reverse('recipe:recipe-ratings', args=[recipe.id])
+
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_rate_nonexistent_recipe(self):
+        """Test rating a recipe that doesn't exist."""
+        url = reverse('recipe:recipe-ratings', args=[999])
+        payload = {'rating': Decimal('4.0')}
+
+        res = self.client.post(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_rating_invalid_value(self):
+        """Test rating a recipe with an invalid value."""
+        recipe = create_recipe(user=self.user)
+        url = reverse('recipe:recipe-ratings', args=[recipe.id])
+        payload = {'rating': Decimal('6.0')}
+
+        res = self.client.post(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_recipe_detail_includes_ratings(self):
+        """Test recipe detail includes ratings from all users."""
+        other_user = create_user(
+            email='other@example.com',
+            password='otherpass123'
+        )
+        recipe = create_recipe(user=self.user)
+        Rating.objects.create(user=self.user, recipe=recipe, rating=Decimal('4.0'))
+        Rating.objects.create(user=other_user, recipe=recipe, rating=Decimal('5.0'))
+
+        url = detail_url(recipe.id)
+        res = self.client.get(url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['average_rating'], Decimal('4.5'))
+        self.assertEqual(res.data['rating_count'], 2)
+        self.assertEqual(len(res.data['ratings']), 2)
+
+    def test_list_ratings_for_recipe(self):
+        """Test listing ratings for a specific recipe."""
+        other_user = create_user(
+            email='other@example.com',
+            password='otherpass123'
+        )
+        recipe = create_recipe(user=self.user)
+        other_recipe = create_recipe(user=self.user)
+        rating1 = Rating.objects.create(user=self.user, recipe=recipe, rating=Decimal('4.0'))
+        rating2 = Rating.objects.create(user=other_user, recipe=recipe, rating=Decimal('5.0'))
+        Rating.objects.create(user=self.user, recipe=other_recipe, rating=Decimal('3.0'))
+
+        url = reverse('recipe:recipe-ratings', args=[recipe.id])
+        res = self.client.get(url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 2)
+        rating_ids = [rating['id'] for rating in res.data]
+        self.assertIn(rating1.id, rating_ids)
+        self.assertIn(rating2.id, rating_ids)
+
+    def test_recipe_list_includes_average_rating(self):
+        """Test average rating is included in recipe responses."""
+        other_user = create_user(
+            email='other@example.com',
+            password='otherpass123'
+        )
+        recipe = create_recipe(user=self.user)
+        recipe.ratings.create(user=self.user, rating=Decimal('4.0'))
+        recipe.ratings.create(user=other_user, rating=Decimal('5.0'))
 
         res = self.client.get(RECIPES_URL)
 
-        recipes = Recipe.objects.filter(user=self.user).order_by('-id')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data[0]['average_rating'], Decimal('4.5'))
+        self.assertEqual(res.data[0]['rating_count'], 2)
+
+    def test_filter_recipes_by_rating(self):
+        """Test filtering recipes by average rating."""
+        other_user = create_user(
+            email='other@example.com',
+            password='otherpass123'
+        )
+        recipe1 = create_recipe(user=self.user)
+        recipe2 = create_recipe(user=self.user)
+        recipe1.ratings.create(user=self.user, rating=Decimal('3.0'))
+        recipe1.ratings.create(user=other_user, recipe=recipe1, rating=Decimal('4.0'))
+        recipe2.ratings.create(user=self.user, rating=Decimal('2.0'))
+
+        res = self.client.get(RECIPES_URL, {'rating': '3.5'})
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['id'], recipe1.id)
+
+    def test_retrieve_all_recipes(self):
+        """Test retrieving recipes from all authenticated users."""
+
+        res = self.client.get(RECIPES_URL)
+
+        recipes = Recipe.objects.all().order_by('-id')
         serializer = RecipeSerializer(recipes, many=True)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data, serializer.data)
@@ -208,8 +403,48 @@ class PrivateRecipeApiTests(TestCase):
         url = detail_url(recipe.id)
         res = self.client.delete(url)
 
-        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(Recipe.objects.filter(id=recipe.id).exists())
+
+    def test_admin_can_update_other_users_recipe(self):
+        """Test that an admin can update another user's recipe."""
+        other_user = create_user(
+            email='otheruser@example.com',
+            password='otherpass123'
+        )
+        admin_user = get_user_model().objects.create_superuser(
+            email='admin@example.com',
+            password='adminpass123'
+        )
+        recipe = create_recipe(user=other_user)
+        self.client.force_authenticate(user=admin_user)
+
+        payload = {'title': 'Updated Title'}
+        url = detail_url(recipe.id)
+        res = self.client.patch(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        recipe.refresh_from_db()
+        self.assertEqual(recipe.title, 'Updated Title')
+
+    def test_admin_can_delete_other_users_recipe(self):
+        """Test that an admin can delete another user's recipe."""
+        other_user = create_user(
+            email='otheruser@example.com',
+            password='otherpass123'
+        )
+        admin_user = get_user_model().objects.create_superuser(
+            email='admin@example.com',
+            password='adminpass123'
+        )
+        recipe = create_recipe(user=other_user)
+        self.client.force_authenticate(user=admin_user)
+
+        url = detail_url(recipe.id)
+        res = self.client.delete(url)
+
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Recipe.objects.filter(id=recipe.id).exists())
 
     def test_create_recipe_with_new_tags(self):
         """Test creating a recipe with new tags."""
