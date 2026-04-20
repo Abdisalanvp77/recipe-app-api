@@ -11,4 +11,11 @@ router.register('ingredients', views.IngredientViewSet)
 app_name = 'recipe'
 urlpatterns = [
     path('', include(router.urls)),
+    path('ratings/<int:recipe_id>/', views.RatingViewSet.as_view({
+        'get': 'list',
+        'post': 'create',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy'
+    }), name='recipe-ratings'),
 ]
