@@ -74,6 +74,7 @@ admin.site.register(models.Recipe)  # Register the Recipe model with the admin s
 admin.site.register(models.Tag)  # Register the Tag model with the admin site.
 admin.site.register(models.Ingredient)  # Register the Ingredient model with the admin site.
 admin.site.register(models.Rating)  # Register the Rating model with the admin site.
+admin.site.register(models.ReviewVote)  # Register the ReviewVote model with the admin site.
 admin.site.register(models.RecipeStep)  # Register the RecipeStep model with the admin site.
 admin.site.register(models.DietaryRestriction)  # Register the DietaryRestriction model with the admin site.
 admin.site.register(models.GlobalTag)  # Register the GlobalTag model with the admin site.

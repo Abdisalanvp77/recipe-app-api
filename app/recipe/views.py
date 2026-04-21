@@ -26,6 +26,7 @@ from rest_framework import status
 from core.models import (
     Recipe,
     Rating,
+    ReviewVote,
     Tag,
     Ingredient,
     DietaryRestriction,
@@ -310,12 +311,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
         if max_total_time:
             try:
                 max_total_val = int(max_total_time)
-                queryset = queryset.filter(
-                    prep_time_minutes__lte=max_total_val,
-                    cook_time_minutes__lte=max_total_val
-                ).filter(
-                    F('prep_time_minutes') + F('cook_time_minutes') <= max_total_val
-                )
+                # Filter recipes where total time (prep + cook) is <= max_total_time
+                queryset = queryset.annotate(
+                    total_time=F('prep_time_minutes') + F('cook_time_minutes')
+                ).filter(total_time__lte=max_total_val)
             except ValueError:
                 pass
 
@@ -438,9 +437,6 @@ class RatingViewSet(viewsets.ModelViewSet):
             recipe = Recipe.objects.get(id=recipe_id)
         except Recipe.DoesNotExist:
             return Response({"error": "Recipe not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # Check if user already has a rating for this recipe
-        existing_rating = Rating.objects.filter(user=request.user, recipe=recipe).first()
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
