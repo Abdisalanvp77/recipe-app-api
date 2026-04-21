@@ -14,6 +14,7 @@ from django.contrib.auth.models import (
     BaseUserManager,
     PermissionsMixin
 )
+from django.contrib.postgres.search import SearchVectorField, SearchVector
 
 
 def recipe_image_file_path(instance, filename):
@@ -103,9 +104,34 @@ class Recipe(models.Model):
     dietary_restrictions = models.ManyToManyField('DietaryRestriction', blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(default=timezone.now)
+    search_vector = SearchVectorField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['cuisine']),
+            models.Index(fields=['difficulty']),
+            models.Index(fields=['is_vegetarian', 'is_vegan', 'is_gluten_free']),
+            models.Index(fields=['search_vector']),
+        ]
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Update search vector
+        self.search_vector = (
+            SearchVector('title', weight='A') +
+            SearchVector('description', weight='B') +
+            SearchVector('cuisine', weight='C')
+        )
+        # Add ingredient and tag names to search
+        ingredient_names = ' '.join([ing.name for ing in self.ingredients.all()])
+        tag_names = ' '.join([tag.name for tag in self.tags.all()])
+        if ingredient_names:
+            self.search_vector += SearchVector(models.Value(ingredient_names), weight='D')
+        if tag_names:
+            self.search_vector += SearchVector(models.Value(tag_names), weight='D')
+        super().save(update_fields=['search_vector'])
 
     @property
     def average_rating(self):
@@ -117,6 +143,11 @@ class Recipe(models.Model):
     def rating_count(self):
         """Return the total number of ratings for the recipe."""
         return self.ratings.count()
+
+    @property
+    def total_time_minutes(self):
+        """Return total time (prep + cook)."""
+        return self.prep_time_minutes + self.cook_time_minutes
 
     def __str__(self):
         return self.title
@@ -134,9 +165,16 @@ class Rating(models.Model):
         on_delete=models.CASCADE
     )
     rating = models.DecimalField(max_digits=3, decimal_places=1)
+    review_text = models.TextField(blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(default=timezone.now)
+    is_verified = models.BooleanField(default=False)  # Verified purchase/review
+    helpful_votes = models.PositiveIntegerField(default=0)
+    total_votes = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ('user', 'recipe')
+        ordering = ['-created_at']
         constraints = [
             models.CheckConstraint(
                 check=models.Q(rating__gte=1) & models.Q(rating__lte=5),
@@ -144,8 +182,36 @@ class Rating(models.Model):
             )
         ]
 
+    @property
+    def helpful_percentage(self):
+        """Return the percentage of helpful votes."""
+        if self.total_votes == 0:
+            return 0
+        return round((self.helpful_votes / self.total_votes) * 100, 1)
+
     def __str__(self):
         return f'{self.rating} rating for {self.recipe.title}'
+
+
+class ReviewVote(models.Model):
+    """Helpful/not helpful votes on reviews."""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE
+    )
+    rating = models.ForeignKey(
+        Rating,
+        related_name='votes',
+        on_delete=models.CASCADE
+    )
+    is_helpful = models.BooleanField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ('user', 'rating')
+
+    def __str__(self):
+        return f'{"Helpful" if self.is_helpful else "Not helpful"} vote by {self.user.email}'
 
 
 class Tag(models.Model):
