@@ -22,6 +22,9 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy'
     }), name='recipe-ratings'),
+    path('ratings/<int:recipe_id>/<int:pk>/vote/', views.RatingViewSet.as_view({
+        'post': 'vote_helpful'
+    }), name='recipe-rating-vote'),
     path('collections/<int:pk>/remove_recipe/<int:recipe_id>/',
          views.RecipeCollectionViewSet.as_view({'delete': 'remove_recipe'}),
          name='collection-remove-recipe'),

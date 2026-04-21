@@ -4,6 +4,7 @@ from core.models import (
     Ingredient,
     Recipe,
     Rating,
+    ReviewVote,
     Tag,
     RecipeStep,
     DietaryRestriction,
@@ -173,15 +174,43 @@ class RecipeSerializer(serializers.ModelSerializer):
 
 class RecipeRatingSerializer(serializers.ModelSerializer):
     """Serializer for recipe rating objects."""
-
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    user = serializers.StringRelatedField(read_only=True)
     recipe = serializers.PrimaryKeyRelatedField(read_only=True)
     rating = serializers.DecimalField(max_digits=3, decimal_places=1, min_value=1, max_value=5)
+    helpful_percentage = serializers.SerializerMethodField()
+    user_has_voted = serializers.SerializerMethodField()
 
     class Meta:
         model = Rating
-        fields = ['id', 'user', 'recipe', 'rating']
-        read_only_fields = ['id', 'user', 'recipe']
+        fields = [
+            'id', 'user', 'recipe', 'rating', 'review_text',
+            'created_at', 'updated_at', 'is_verified',
+            'helpful_votes', 'total_votes', 'helpful_percentage', 'user_has_voted'
+        ]
+        read_only_fields = [
+            'id', 'user', 'recipe', 'created_at', 'updated_at',
+            'helpful_votes', 'total_votes', 'helpful_percentage', 'user_has_voted'
+        ]
+
+    def get_helpful_percentage(self, obj):
+        return obj.helpful_percentage
+
+    def get_user_has_voted(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.votes.filter(user=request.user).exists()
+        return False
+
+
+class ReviewVoteSerializer(serializers.ModelSerializer):
+    """Serializer for review vote objects."""
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
+    rating = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = ReviewVote
+        fields = ['id', 'user', 'rating', 'is_helpful', 'created_at']
+        read_only_fields = ['id', 'user', 'rating', 'created_at']
 
 
 class RecipeDetailSerializer(RecipeSerializer):
